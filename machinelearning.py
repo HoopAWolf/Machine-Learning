@@ -1,64 +1,129 @@
 import pygame
+import math
 from pygame.locals import *
  
-# Take colors input
-YELLOW = (255, 255, 0)
-BLUE = (0, 0, 255)
- 
-# Construct the GUI game
-pygame.init()
- 
-# Set dimensions of game GUI
-w, h = 640, 350
+#-----------------------------------------------------VARIABLES-----------------------------------------------------
+w, h = 960, 720 # Set dimensions of game GUI
+fps   = 60  # frame rate
+ani   = 4   # animation cycles
+running = True # Set running and moving values
+
+#-----------------------------------------------------OBJECTS-------------------------------------------------------
+class Car(pygame.sprite.Sprite):
+    def __init__(self, x, y, rotations=360):
+        pygame.sprite.Sprite.__init__(self)
+        self.images = []
+        self.min_angle = (360 / rotations)
+        
+        img = pygame.image.load('res/car.png').convert_alpha()
+        
+        for i in range(rotations):
+            rotated_image = pygame.transform.rotozoom(img, 360 - 90 - (i * self.min_angle), 1)
+            self.images.append(rotated_image)
+        
+        self.min_angle = math.radians(self.min_angle)
+        self.image = self.images[0]
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.reversing = False
+        self.heading = 0
+        self.speed = 0
+        self.velocity = pygame.math.Vector2(0, 0)
+        self.position = pygame.math.Vector2(x, y)
+        
+    def turn(self, angle_degree):
+        if abs(self.speed) > 1:
+            self.heading += math.radians(angle_degree)
+        image_index = int(self.heading / self.min_angle) % len(self.images)
+        
+        if(self.image != self.images[image_index]):
+            x,y = self.rect.center
+            self.image = self.images[image_index]
+            self.rect = self.image.get_rect()
+            self.rect.center = (x,y)
+            
+    def accelerate(self, amount):
+            self.speed += amount
+            
+            if self.speed > 3:
+                self.speed = 3
+            
+    def brake(self):
+        self.speed /= 2
+        if abs(self.speed) < 0.1:
+            self.speed = 0
+            
+    def reverse(self, amount):
+        self.speed -= amount
+        
+        if self.speed < -3:
+            self.speed = -3
+        
+    def update(self):
+        self.velocity.from_polar((self.speed, math.degrees(self.heading)))
+        self.position += self.velocity
+        self.rect.center = (round(self.position[0]), round(self.position[1]))
+        
+        if self.speed > 0:
+            self.speed -= 0.01
+        elif self.speed < 0:
+            self.speed += 0.01
+
+#-----------------------------------------------------FUNCTIONS-----------------------------------------------------
+def Init(): 
+    pygame.init()
+    car_list.add(player)
+    
+def InputPolling():
+    pressed = pygame.key.get_pressed()
+    
+    if pressed[pygame.K_UP]:
+            player.accelerate(0.1)
+    elif pressed[pygame.K_DOWN]:
+            player.reverse(0.05)
+            
+    if pressed[pygame.K_LEFT]:
+            player.turn(-1.8)
+    elif pressed[pygame.K_RIGHT]:
+            player.turn(1.8)
+            
+    if pressed[pygame.K_SPACE]:
+            player.brake()
+        
+        
+
+def Update():
+    car_list.update()
+    
+def Render():
+    screen.blit(resized_background, (0,0))
+    car_list.draw(screen)
+    pygame.display.update()
+
+def Quit():
+    pygame.quit()
+
+#-----------------------------------------------------SET UP--------------------------------------------------------
+clock = pygame.time.Clock() # Internal Clock
 screen = pygame.display.set_mode((w, h))
- 
-# Take image as input
-img = pygame.image.load('res\car.png')
-img.convert()
- 
-# Draw rectangle around the image
-rect = img.get_rect()
-rect.center = w//2, h//2
- 
-# Set running and moving values
-running = True
-moving = False
- 
-# Setting what happens when game 
-# is in running state
+backdrop = pygame.image.load('res/track_1.png')
+resized_background = pygame.transform.scale(backdrop, (w, h)) 
+
+player = Car(w/2, h/2)
+car_list = pygame.sprite.Group()
+
+#-----------------------------------------------------MAIN LOOP-----------------------------------------------------
+Init()
+
 while running:
      
     for event in pygame.event.get():
- 
-        # Close if the user quits the 
-        # game
-        if event.type == QUIT:
+        if event.type == pygame.QUIT:
             running = False
  
-        # Making the image move
-        elif event.type == MOUSEBUTTONDOWN:
-            if rect.collidepoint(event.pos):
-                moving = True
- 
-        # Set moving as False if you want 
-        # to move the image only with the 
-        # mouse click
-        # Set moving as True if you want 
-        # to move the image without the 
-        # mouse click
-        elif event.type == MOUSEBUTTONUP:
-            moving = False
- 
-        # Make your image move continuously
-        elif event.type == MOUSEMOTION and moving:
-            rect.move_ip(event.rel)
- 
-    # Set screen color and image on screen
-    screen.fill(YELLOW)
-    screen.blit(img, rect)
- 
-    # Update the GUI pygame
-    pygame.display.update()
- 
-# Quit the GUI game
-pygame.quit()
+    InputPolling()
+    Update()
+    Render()
+    clock.tick(fps)
+    
+Quit()
