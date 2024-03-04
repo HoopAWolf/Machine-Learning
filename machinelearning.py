@@ -175,13 +175,13 @@ def InputSimulation(ais, neural_networks):
 def Update():
     car_list.update(resized_background)
     
-def UpdateSimulation(ais, genomes, still_alive):
+def UpdateSimulation(ais, genomes, alive_counter):
     car_list.update(resized_background)
     
-    still_alive[0] = 0
+    alive_counter[0] = 0
     for i, ai in enumerate(ais):
         if ai.alive:
-            still_alive[0] += 1
+            alive_counter[0] += 1
             genomes[i][1].fitness += ai.get_reward()
         
     
@@ -232,7 +232,7 @@ def MainSimulationLoop(genomes, config):
     counter = 0
     neural_networks = []
     ais = []
-    still_alive = [0]
+    alive_counter = [0]
     car_list.empty()
     
     for i, genome in genomes:
@@ -250,12 +250,12 @@ def MainSimulationLoop(genomes, config):
                 running = False
      
         InputSimulation(ais, neural_networks)
-        UpdateSimulation(ais, genomes, still_alive)
+        UpdateSimulation(ais, genomes, alive_counter)
         RenderSimulation(ais, genomes)
         clock.tick(fps)
         counter += 1
         
-        if still_alive[0] == 0:
+        if alive_counter[0] == 0:
             running = False
             
         if counter > 1200:
