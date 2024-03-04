@@ -9,7 +9,6 @@ from pygame.locals import *
 w, h = 960, 720 # Set dimensions of game GUI
 fps   = 60  # frame rate
 ani   = 4   # animation cycles
-running = True # Set running and moving values
 current_generation = 0 # Generation counter
 BORDER_COLOR = (48, 160, 0, 255) # Set wall color
 CAR_SIZE_HEIGHT = 44
@@ -131,7 +130,6 @@ class Car(pygame.sprite.Sprite):
         for sensor in self.sensors:
             position = sensor[0]
             pygame.draw.line(screen, (0, 255, 0) if self.alive else (255, 0, 0), self.rect.center, position, 1)
-            pygame.draw.circle(screen, (0, 255, 0) if self.alive else (255, 0, 0), position, 5)
             
 
 #-----------------------------------------------------FUNCTIONS-----------------------------------------------------
@@ -143,22 +141,23 @@ def Init():
     
     population.add_reporter(neat.StdOutReporter(True))
     
-def InputPolling(ais, neural_networks):   
+def InputPolling():   
     pressed = pygame.key.get_pressed()
     
-    #if pressed[pygame.K_UP]:
-            #player.accelerate(0.1)
-    #elif pressed[pygame.K_DOWN]:
-            #player.reverse(0.05)
+    if pressed[pygame.K_UP]:
+            player.accelerate(0.1)
+    elif pressed[pygame.K_DOWN]:
+            player.reverse(0.05)
             
-    #if pressed[pygame.K_LEFT]:
-            #player.turn(-1.8)
-    #elif pressed[pygame.K_RIGHT]:
-            #player.turn(1.8)
+    if pressed[pygame.K_LEFT]:
+            player.turn(-1.8)
+    elif pressed[pygame.K_RIGHT]:
+            player.turn(1.8)
             
-    #if pressed[pygame.K_SPACE]:
-            #player.brake()
-            
+    if pressed[pygame.K_SPACE]:
+            player.brake()
+
+def InputSimulation(ais, neural_networks):             
     for i, ai in enumerate(ais):
         if ai.alive:            
             output = neural_networks[i].activate(ai.get_distance_to_border_data())
@@ -172,9 +171,11 @@ def InputPolling(ais, neural_networks):
                 ai.reverse(0.05) # Slow down
             else:
                 ai.accelerate(0.1) # Speed up
-        
-        
-def Update(ais, genomes, still_alive):
+     
+def Update():
+    car_list.update(resized_background)
+    
+def UpdateSimulation(ais, genomes, still_alive):
     car_list.update(resized_background)
     
     still_alive[0] = 0
@@ -184,7 +185,12 @@ def Update(ais, genomes, still_alive):
             genomes[i][1].fitness += ai.get_reward()
         
     
-def Render(ais, genomes):
+def Render():
+    screen.blit(resized_background, (0,0))
+    car_list.draw(screen)
+    pygame.display.update()
+    
+def RenderSimulation(ais, genomes):
     screen.blit(resized_background, (0,0))
     car_list.draw(screen)
     
@@ -195,29 +201,40 @@ def Render(ais, genomes):
         text_rect = text.get_rect()
         text_rect.center = [ai.rect.center[0], ai.rect.center[1] + 15]
         screen.blit(text, text_rect)
-
-    #text = text_font.render("Time Taken: " + str(int(player.time_taken)), True, (0, 0, 0))
-    #text_rect = text.get_rect()
-    #text_rect.center = (100, 50)
-    #screen.blit(text, text_rect)
-    
-    #text = text_font.render("Is Alive: " + str(player.alive), True, (0, 0, 0))
-    #text_rect = text.get_rect()
-    #text_rect.center = (100, 70)
-    #screen.blit(text, text_rect)
     
     pygame.display.update()
 
-def Quit():
-    pygame.quit()
+def MainLoop():
+    running = True
+    counter = 0
+    car_list.add(player)
+    
+    while running:
+         
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+     
+        InputPolling()
+        Update()
+        Render()
+        clock.tick(fps)
+        counter += 1
+        
+        if not player.alive:
+            running = False
+            
+        if counter > 1200:
+            running = False
 
-def MainLoop(genomes, config):
-    global running
+def MainSimulationLoop(genomes, config):
+    running = True
     counter = 0
     neural_networks = []
     ais = []
     still_alive = [0]
-       
+    car_list.empty()
+    
     for i, genome in genomes:
         neural_network = neat.nn.FeedForwardNetwork.create(genome, config)
         neural_networks.append(neural_network)
@@ -232,9 +249,9 @@ def MainLoop(genomes, config):
             if event.type == pygame.QUIT:
                 running = False
      
-        InputPolling(ais, neural_networks)
-        Update(ais, genomes, still_alive)
-        Render(ais, genomes)
+        InputSimulation(ais, neural_networks)
+        UpdateSimulation(ais, genomes, still_alive)
+        RenderSimulation(ais, genomes)
         clock.tick(fps)
         counter += 1
         
@@ -243,12 +260,19 @@ def MainLoop(genomes, config):
             
         if counter > 1200:
             running = False
+                           
+def Quit():
+    pygame.quit()
+
 #-----------------------------------------------------SET UP--------------------------------------------------------
 clock = pygame.time.Clock() # Internal Clock
 screen = pygame.display.set_mode((w, h))
 backdrop = pygame.image.load('res/track_1.png')
 resized_background = pygame.transform.scale(backdrop, (w, h))
 text_font = 0
+
+#Player
+player = Car(400, 180)
 
 # Q-Learning variables using NEAT
 config_path = 'configs/config.txt'
@@ -260,5 +284,6 @@ car_list = pygame.sprite.Group()
 
 #-----------------------------------------------------MAIN LOOP-----------------------------------------------------
 Init()
-population.run(MainLoop, 100)  
+MainLoop()
+population.run(MainSimulationLoop, 10)  
 Quit()
