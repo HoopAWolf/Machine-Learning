@@ -13,6 +13,13 @@ current_generation = 0 # Generation counter
 BORDER_COLOR = (48, 160, 0, 255) # Set wall color
 CAR_SIZE_HEIGHT = 44
 
+IsRecording    = False # flag for if we're recording the inputs from real players
+RecordedInputs = []
+WasRKeyPressed = False # No key trigger so we have to check 
+
+IsRanFromData  = False # flag for if we're running the game through a external dataset 
+DataFile = 'Data/Recordings/data.txt'
+InputIndex = 0
 #-----------------------------------------------------OBJECTS-------------------------------------------------------
 class Car(pygame.sprite.Sprite):
     def __init__(self, x, y, rotations=360):
@@ -130,7 +137,6 @@ class Car(pygame.sprite.Sprite):
         for sensor in self.sensors:
             position = sensor[0]
             pygame.draw.line(screen, (0, 255, 0) if self.alive else (255, 0, 0), self.rect.center, position, 1)
-            
 
 #-----------------------------------------------------FUNCTIONS-----------------------------------------------------
 def Init(): 
@@ -138,24 +144,77 @@ def Init():
     
     pygame.init()
     text_font = pygame.font.SysFont(None, 20)
-    
     population.add_reporter(neat.StdOutReporter(True))
+
+def SaveRecordedInputsToFile():
+    global DataFile, RecordedInputs
+    file = open(DataFile, 'w')
+    try:
+        for inputblock in RecordedInputs:
+            if inputblock == "":
+                inputblock = " "
+            file.write(inputblock + ",")
+    
+    finally:
+        file.close()
     
 def InputPolling():   
+    global IsRecording, RecordedInputs, WasRKeyPressed
     pressed = pygame.key.get_pressed()
-    
+    inputs = ""
+
     if pressed[pygame.K_UP]:
-            player.accelerate(0.1)
+        player.accelerate(0.1)
+        inputs += 'U'
     elif pressed[pygame.K_DOWN]:
-            player.reverse(0.05)
+        player.reverse(0.05)
+        inputs += 'D'
             
     if pressed[pygame.K_LEFT]:
-            player.turn(-1.8)
+        player.turn(-1.8)
+        inputs += 'L'
     elif pressed[pygame.K_RIGHT]:
-            player.turn(1.8)
-            
+        player.turn(1.8)
+        inputs += 'R'
+
     if pressed[pygame.K_SPACE]:
+        player.brake()
+        inputs += 'B'
+
+    if IsRecording and not IsRanFromData:
+        RecordedInputs.append(inputs)
+
+    if pressed[pygame.K_r]:
+        if not WasRKeyPressed:
+            if IsRecording: 
+                SaveRecordedInputsToFile()    
+            IsRecording = not IsRecording
+            WasRKeyPressed = True
+    else:
+        WasRKeyPressed = False
+
+def RunDataInputs():
+    global InputIndex, RecordedInputs
+    if InputIndex >= len(RecordedInputs): 
+        return
+    
+    inputblock = RecordedInputs[InputIndex]
+
+    for input in inputblock:
+        if input == 'U':
+            player.accelerate(0.1)
+        elif input == 'D':
+            player.reverse(0.05)
+
+        if input == 'L':
+            player.turn(-1.8)
+        elif input == 'R':
+            player.turn(1.8)
+
+        if input == 'B':
             player.brake()
+    
+    InputIndex += 1
 
 def InputSimulation(ais, neural_networks):             
     for i, ai in enumerate(ais):
@@ -205,17 +264,26 @@ def RenderSimulation(ais, genomes):
     pygame.display.update()
 
 def MainLoop():
+    global IsRanFromData, DataFile, RecordedInputs
     running = True
     counter = 0
     car_list.add(player)
     
+    if IsRanFromData:
+        with open(DataFile, 'r') as file:
+            content = file.readline()
+            RecordedInputs = content.split(',')
+
     while running:
-         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
      
-        InputPolling()
+        if not IsRanFromData:
+            InputPolling()
+        else:
+            RunDataInputs()
+
         Update()
         Render()
         clock.tick(fps)
