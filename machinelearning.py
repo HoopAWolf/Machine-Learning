@@ -17,9 +17,13 @@ IsRecording    = False # flag for if we're recording the inputs from real player
 RecordedInputs = []
 WasRKeyPressed = False # No key trigger so we have to check 
 
-IsRanFromData  = False # flag for if we're running the game through a external dataset 
+IsRanFromData  = True # flag for if we're running the game through a external dataset 
 DataFile = 'Data/Recordings/data.txt'
 InputIndex = 0
+
+highest_score = 0
+AIDataFile = 'Data/Recordings/ai_data.txt'
+AIRecordedInput = []
 #-----------------------------------------------------OBJECTS-------------------------------------------------------
 class Car(pygame.sprite.Sprite):
     def __init__(self, x, y, rotations=360):
@@ -146,9 +150,9 @@ def Init():
     text_font = pygame.font.SysFont(None, 20)
     population.add_reporter(neat.StdOutReporter(True))
 
-def SaveRecordedInputsToFile():
-    global DataFile, RecordedInputs
-    file = open(DataFile, 'w')
+def SaveRecordedInputsToFile(data_path):
+    global RecordedInputs
+    file = open(data_path, 'w')
     try:
         for inputblock in RecordedInputs:
             if inputblock == "":
@@ -187,7 +191,7 @@ def InputPolling():
     if pressed[pygame.K_r]:
         if not WasRKeyPressed:
             if IsRecording: 
-                SaveRecordedInputsToFile()    
+                SaveRecordedInputsToFile(DataFile)    
             IsRecording = not IsRecording
             WasRKeyPressed = True
     else:
@@ -216,20 +220,28 @@ def RunDataInputs():
     
     InputIndex += 1
 
-def InputSimulation(ais, neural_networks):             
+def InputSimulation(ais, neural_networks):     
+    global AIRecordedInput
     for i, ai in enumerate(ais):
+        inputs = ""
         if ai.alive:            
             output = neural_networks[i].activate(ai.get_distance_to_border_data())
             choice = output.index(max(output))
         
             if choice == 0:
                 ai.turn(1.8) # Turn left
+                inputs += 'L,'
             elif choice == 1:
                 ai.turn(-1.8) # Turn right
+                inputs += 'R,'
             elif choice == 2:
                 ai.reverse(0.05) # Slow down
+                inputs += 'D,'
             else:
                 ai.accelerate(0.1) # Speed up
+                inputs += 'U,'
+                
+            AIRecordedInput[i] += inputs
      
 def Update():
     car_list.update(resized_background)
@@ -270,7 +282,7 @@ def MainLoop():
     car_list.add(player)
     
     if IsRanFromData:
-        with open(DataFile, 'r') as file:
+        with open(AIDataFile, 'r') as file:
             content = file.readline()
             RecordedInputs = content.split(',')
 
@@ -296,12 +308,17 @@ def MainLoop():
             running = False
 
 def MainSimulationLoop(genomes, config):
+    global highest_score
+    global AIRecordedInput
+    global RecordedInputs
     running = True
     counter = 0
     neural_networks = []
     ais = []
     alive_counter = [0]
     car_list.empty()
+    AIRecordedInput.clear()
+    AIRecordedInput = [""] * 30
     
     for i, genome in genomes:
         neural_network = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -327,6 +344,16 @@ def MainSimulationLoop(genomes, config):
             running = False
             
         if counter > 1200:
+            highest_index = -1
+            for i, ai in enumerate(ais):
+                if highest_score < genomes[i][1].fitness:
+                    highest_score = genomes[i][1].fitness
+                    highest_index = i
+                    
+            if highest_index > -1:  
+                RecordedInputs.append(AIRecordedInput[highest_index])
+                SaveRecordedInputsToFile(AIDataFile)  
+                
             running = False
                            
 def Quit():
