@@ -63,8 +63,8 @@ class Car(pygame.sprite.Sprite):
     def accelerate(self, amount):
             self.speed += amount
             
-            if self.speed > 3:
-                self.speed = 3
+            if self.speed > 5:
+                self.speed = 5
             
     def brake(self):
         self.speed *= 0.5
@@ -98,7 +98,7 @@ class Car(pygame.sprite.Sprite):
         self.sensors.append([(x, y), dist])
         
     def get_reward(self):
-        return (self.distance_travelled / (CAR_SIZE_HEIGHT * 0.5)) * 1 if self.speed > 2 else -1
+        return (self.distance_travelled / (CAR_SIZE_HEIGHT * 0.5)) * 1 if self.speed > 1 else -1
         
     def get_distance_to_border_data(self):
         sensors = self.sensors
