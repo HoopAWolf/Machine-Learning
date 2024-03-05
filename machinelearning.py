@@ -17,7 +17,7 @@ IsRecording    = False # flag for if we're recording the inputs from real player
 RecordedInputs = []
 WasRKeyPressed = False # No key trigger so we have to check 
 
-IsRanFromData  = True # flag for if we're running the game through a external dataset 
+IsRanFromData  = False # flag for if we're running the game through a external dataset 
 DataFile = 'Data/Recordings/data.txt'
 InputIndex = 0
 
@@ -229,10 +229,10 @@ def InputSimulation(ais, neural_networks):
             choice = output.index(max(output))
         
             if choice == 0:
-                ai.turn(1.8) # Turn left
+                ai.turn(-1.8) # Turn left
                 inputs += 'L,'
             elif choice == 1:
-                ai.turn(-1.8) # Turn right
+                ai.turn(1.8) # Turn right
                 inputs += 'R,'
             elif choice == 2:
                 ai.reverse(0.05) # Slow down
@@ -282,7 +282,7 @@ def MainLoop():
     car_list.add(player)
     
     if IsRanFromData:
-        with open(AIDataFile, 'r') as file:
+        with open(DataFile, 'r') as file:
             content = file.readline()
             RecordedInputs = content.split(',')
 
