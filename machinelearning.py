@@ -18,6 +18,7 @@ RecordedInputs = []
 WasRKeyPressed = False # No key trigger so we have to check 
 
 IsRanFromData  = False # flag for if we're running the game through a external dataset 
+IsRanFromAIData  = False
 DataFile = 'Data/Recordings/data.txt'
 InputIndex = 0
 
@@ -150,14 +151,17 @@ def Init():
     text_font = pygame.font.SysFont(None, 20)
     population.add_reporter(neat.StdOutReporter(True))
 
-def SaveRecordedInputsToFile(data_path):
+def SaveRecordedInputsToFile(data_path, is_AI_data):
     global RecordedInputs
     file = open(data_path, 'w')
     try:
         for inputblock in RecordedInputs:
-            if inputblock == "":
-                inputblock = " "
-            file.write(inputblock + ",")
+            if not is_AI_data:
+                if inputblock == "":
+                    inputblock = " "
+                file.write(inputblock + ",")
+            else:
+                file.write(inputblock)
     
     finally:
         file.close()
@@ -191,7 +195,7 @@ def InputPolling():
     if pressed[pygame.K_r]:
         if not WasRKeyPressed:
             if IsRecording: 
-                SaveRecordedInputsToFile(DataFile)    
+                SaveRecordedInputsToFile(DataFile, False)    
             IsRecording = not IsRecording
             WasRKeyPressed = True
     else:
@@ -276,7 +280,7 @@ def RenderSimulation(ais, genomes):
     pygame.display.update()
 
 def MainLoop():
-    global IsRanFromData, DataFile, RecordedInputs
+    global IsRanFromData, IsRanFromAIData, DataFile, RecordedInputs
     running = True
     counter = 0
     car_list.add(player)
@@ -285,13 +289,17 @@ def MainLoop():
         with open(DataFile, 'r') as file:
             content = file.readline()
             RecordedInputs = content.split(',')
+    elif IsRanFromAIData:
+        with open(AIDataFile, 'r') as file:
+            content = file.readline()
+            RecordedInputs = content.split(',') 
 
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
      
-        if not IsRanFromData:
+        if not IsRanFromData and not IsRanFromAIData:
             InputPolling()
         else:
             RunDataInputs()
@@ -352,7 +360,7 @@ def MainSimulationLoop(genomes, config):
                     
             if highest_index > -1:  
                 RecordedInputs.append(AIRecordedInput[highest_index])
-                SaveRecordedInputsToFile(AIDataFile)  
+                SaveRecordedInputsToFile(AIDataFile, True)  
                 
             running = False
                            
