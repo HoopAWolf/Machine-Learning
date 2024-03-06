@@ -227,25 +227,22 @@ def RunDataInputs():
 def InputSimulation(ais, neural_networks):     
     global AIRecordedInput
     for i, ai in enumerate(ais):
-        inputs = ""
         if ai.alive:            
             output = neural_networks[i].activate(ai.get_distance_to_border_data())
             choice = output.index(max(output))
         
             if choice == 0:
                 ai.turn(-1.8) # Turn left
-                inputs += 'L,'
+                AIRecordedInput[i] += 'L,'
             elif choice == 1:
                 ai.turn(1.8) # Turn right
-                inputs += 'R,'
+                AIRecordedInput[i] += 'R,'
             elif choice == 2:
                 ai.reverse(0.05) # Slow down
-                inputs += 'D,'
+                AIRecordedInput[i] += 'D,'
             else:
                 ai.accelerate(0.1) # Speed up
-                inputs += 'U,'
-                
-            AIRecordedInput[i] += inputs
+                AIRecordedInput[i] += 'U,'
      
 def Update():
     car_list.update(resized_background)
@@ -326,6 +323,7 @@ def MainSimulationLoop(genomes, config):
     alive_counter = [0]
     car_list.empty()
     AIRecordedInput.clear()
+    RecordedInputs.clear()
     AIRecordedInput = [""] * 30
     
     for i, genome in genomes:
@@ -388,5 +386,5 @@ car_list = pygame.sprite.Group()
 #-----------------------------------------------------MAIN LOOP-----------------------------------------------------
 Init()
 MainLoop()
-population.run(MainSimulationLoop, 10)  
+population.run(MainSimulationLoop, 1)  
 Quit()
