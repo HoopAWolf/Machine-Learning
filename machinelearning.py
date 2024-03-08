@@ -316,6 +316,7 @@ def MainSimulationLoop(genomes, config):
     global highest_score
     global AIRecordedInput
     global RecordedInputs
+    global current_generation
     running = True
     counter = 0
     neural_networks = []
@@ -359,7 +360,8 @@ def MainSimulationLoop(genomes, config):
             if highest_index > -1:  
                 RecordedInputs.append(AIRecordedInput[highest_index])
                 SaveRecordedInputsToFile(AIDataFile, True)  
-                
+            
+            current_generation += 1
             running = False
                            
 def Quit():
