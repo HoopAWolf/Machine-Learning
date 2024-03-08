@@ -4,7 +4,7 @@ import math
 import os
 import sys
 from pygame.locals import *
- 
+from matplotlib import pyplot as plt
 #-----------------------------------------------------VARIABLES-----------------------------------------------------
 w, h = 960, 720 # Set dimensions of game GUI
 fps   = 60  # frame rate
@@ -23,8 +23,13 @@ DataFile = 'Data/Recordings/data.txt'
 InputIndex = 0
 
 highest_score = 0
+lowest_score = 0
 AIDataFile = 'Data/Recordings/ai_data.txt'
 AIRecordedInput = []
+
+generation_plotx = []
+highestscore_ploty = []
+lowestscore_ploty = []
 #-----------------------------------------------------OBJECTS-------------------------------------------------------
 class Car(pygame.sprite.Sprite):
     def __init__(self, x, y, rotations=360):
@@ -317,6 +322,7 @@ def MainSimulationLoop(genomes, config):
     global AIRecordedInput
     global RecordedInputs
     global current_generation
+    global lowest_score
     running = True
     counter = 0
     neural_networks = []
@@ -353,19 +359,38 @@ def MainSimulationLoop(genomes, config):
         if counter > 1200:
             highest_index = -1
             for i, ai in enumerate(ais):
+                if lowest_score > genomes[i][1].fitness:
+                    lowest_score = genomes[i][1].fitness
                 if highest_score < genomes[i][1].fitness:
                     highest_score = genomes[i][1].fitness
                     highest_index = i
                     
+            generation_plotx.append(current_generation)
+            lowestscore_ploty.append(lowest_score)
+            highestscore_ploty.append(highest_score)
             if highest_index > -1:  
                 RecordedInputs.append(AIRecordedInput[highest_index])
                 SaveRecordedInputsToFile(AIDataFile, True)  
             
             current_generation += 1
             running = False
+    
+            Plot() 
+            
                            
 def Quit():
     pygame.quit()
+    
+def Plot():
+    plt.xlabel('generation')
+    plt.ylabel('highest score')
+    plt.title('highest score per generation')
+    plt.plot(generation_plotx, highestscore_ploty, marker = '.', label = 'highest')
+    plt.plot(generation_plotx, lowestscore_ploty, marker = '.', label = 'lowest')
+    
+    plt.legend(['highest', 'lowest'])
+    plt.grid(True)
+    plt.show()
 
 #-----------------------------------------------------SET UP--------------------------------------------------------
 clock = pygame.time.Clock() # Internal Clock
@@ -388,5 +413,5 @@ car_list = pygame.sprite.Group()
 #-----------------------------------------------------MAIN LOOP-----------------------------------------------------
 Init()
 MainLoop()
-population.run(MainSimulationLoop, 1)  
+population.run(MainSimulationLoop, 100)  
 Quit()
