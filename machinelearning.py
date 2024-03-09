@@ -5,6 +5,9 @@ import os
 import sys
 from pygame.locals import *
 from matplotlib import pyplot as plt
+
+import csv # for csv read/write 
+
 #-----------------------------------------------------VARIABLES-----------------------------------------------------
 w, h = 960, 720 # Set dimensions of game GUI
 fps   = 60  # frame rate
@@ -14,18 +17,18 @@ BORDER_COLOR = (48, 160, 0, 255) # Set wall color
 CAR_SIZE_HEIGHT = 44
 
 IsRecording    = False # flag for if we're recording the inputs from real players
-RecordedInputs = []
+RecordedInputs = [] # list of frame data
 WasRKeyPressed = False # No key trigger so we have to check 
 
-IsRanFromData  = False # flag for if we're running the game through a external dataset 
+IsRanFromData  = True # flag for if we're running the game through a external dataset 
 IsRanFromAIData  = False
-DataFile = 'Data/Recordings/data.txt'
+DataFile = 'Data/Recordings/data.csv'
 InputIndex = 0
 
 highest_score = 0
 lowest_score = 0
-AIDataFile = 'Data/Recordings/ai_data.txt'
-AIRecordedInput = []
+AIDataFile = 'Data/Recordings/ai_data.csv'
+AIRecordedInput = [[]] # list of list of frame data
 
 generation_plotx = []
 highestscore_ploty = []
@@ -92,6 +95,9 @@ class Car(pygame.sprite.Sprite):
         for point in self.corners:
             if game_map.get_at((int(point[0]), int(point[1]))) == BORDER_COLOR:
                 self.alive = False
+                if IsRecording : 
+                    SaveRecordedInputsToFile(DataFile)  
+                    IsRecording = False
                 break
             
     def check_sensor(self, degree, game_map):
@@ -148,6 +154,14 @@ class Car(pygame.sprite.Sprite):
             position = sensor[0]
             pygame.draw.line(screen, (0, 255, 0) if self.alive else (255, 0, 0), self.rect.center, position, 1)
 
+class FrameData():
+    def __init__(self, moves, distLeft, distHalfLeft, distFront, distHalfRight, distRight):
+        self.moves = moves
+        self.distLeft = distLeft
+        self.distHalfLeft = distHalfLeft
+        self.distFront = distFront
+        self.distHalfRight = distHalfRight
+        self.distRight = distRight
 #-----------------------------------------------------FUNCTIONS-----------------------------------------------------
 def Init(): 
     global text_font
@@ -156,25 +170,26 @@ def Init():
     text_font = pygame.font.SysFont(None, 20)
     population.add_reporter(neat.StdOutReporter(True))
 
-def SaveRecordedInputsToFile(data_path, is_AI_data):
+def SaveRecordedInputsToFile(data_path):
     global RecordedInputs
-    file = open(data_path, 'w')
-    try:
-        for inputblock in RecordedInputs:
-            if not is_AI_data:
-                if inputblock == "":
-                    inputblock = " "
-                file.write(inputblock + ",")
-            else:
-                file.write(inputblock)
-    
-    finally:
-        file.close()
-    
+    with open(data_path, 'w', newline='') as datafile:
+        writer = csv.writer(datafile)
+        writer.writerow(['Output (U,D,L,R)', 'Distance from wall (Left)', 'Distance from wall (Half Left)', 'Distance from wall (Front)', 'Distance from wall (Half Right)', 'Distance from wall (Right)'])
+        for frame in RecordedInputs:
+            writer.writerow([frame.moves, frame.distLeft, frame.distHalfLeft, frame.distFront, frame.distHalfRight, frame.distRight])
+
+def ReadRecordedInputsFromFile(data_path):
+    global RecordedInputs
+    with open(data_path, 'r') as datafile:
+        reader = csv.reader(datafile)
+        next(reader)
+        for row in reader:
+            RecordedInputs.append(FrameData(row[0], row[1], row[2], row[3], row[4], row[5]))
+
 def InputPolling():   
     global IsRecording, RecordedInputs, WasRKeyPressed
     pressed = pygame.key.get_pressed()
-    inputs = ""
+    inputs = ''
 
     if pressed[pygame.K_UP]:
         player.accelerate(0.1)
@@ -195,12 +210,13 @@ def InputPolling():
         inputs += 'B'
 
     if IsRecording and not IsRanFromData:
-        RecordedInputs.append(inputs)
+        frame_data = player.get_distance_to_border_data()
+        RecordedInputs.append(FrameData(inputs, frame_data[0], frame_data[1], frame_data[2], frame_data[3], frame_data[4]))
 
     if pressed[pygame.K_r]:
         if not WasRKeyPressed:
             if IsRecording: 
-                SaveRecordedInputsToFile(DataFile, False)    
+                SaveRecordedInputsToFile(DataFile)    
             IsRecording = not IsRecording
             WasRKeyPressed = True
     else:
@@ -211,8 +227,8 @@ def RunDataInputs():
     if InputIndex >= len(RecordedInputs): 
         return
     
-    inputblock = RecordedInputs[InputIndex]
-
+    inputblock = RecordedInputs[InputIndex].moves
+    print(inputblock)
     for input in inputblock:
         if input == 'U':
             player.accelerate(0.1)
@@ -235,19 +251,23 @@ def InputSimulation(ais, neural_networks):
         if ai.alive:            
             output = neural_networks[i].activate(ai.get_distance_to_border_data())
             choice = output.index(max(output))
-        
+            
+            move = ''
             if choice == 0:
                 ai.turn(-1.8) # Turn left
-                AIRecordedInput[i] += 'L,'
+                move = 'L'
             elif choice == 1:
                 ai.turn(1.8) # Turn right
-                AIRecordedInput[i] += 'R,'
+                move = 'R'
             elif choice == 2:
                 ai.reverse(0.05) # Slow down
-                AIRecordedInput[i] += 'D,'
+                move = 'D'
             else:
                 ai.accelerate(0.1) # Speed up
-                AIRecordedInput[i] += 'U,'
+                move = 'U'
+            
+            frame_data = ai.get_distance_to_border_data()
+            AIRecordedInput[i].append(FrameData(move, frame_data[0], frame_data[1], frame_data[2], frame_data[3], frame_data[4]))
      
 def Update():
     car_list.update(resized_background)
@@ -288,13 +308,9 @@ def MainLoop():
     car_list.add(player)
     
     if IsRanFromData:
-        with open(DataFile, 'r') as file:
-            content = file.readline()
-            RecordedInputs = content.split(',')
+        ReadRecordedInputsFromFile(DataFile)
     elif IsRanFromAIData:
-        with open(AIDataFile, 'r') as file:
-            content = file.readline()
-            RecordedInputs = content.split(',') 
+        ReadRecordedInputsFromFile(AIDataFile)
 
     while running:
         for event in pygame.event.get():
@@ -309,6 +325,7 @@ def MainLoop():
         Update()
         Render()
         clock.tick(fps)
+        pygame.display.set_caption(str(clock.get_fps()))
         counter += 1
         
         if not player.alive:
@@ -331,7 +348,7 @@ def MainSimulationLoop(genomes, config):
     car_list.empty()
     AIRecordedInput.clear()
     RecordedInputs.clear()
-    AIRecordedInput = [""] * 30
+    AIRecordedInput = [[]] * 30
     
     for i, genome in genomes:
         neural_network = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -351,6 +368,7 @@ def MainSimulationLoop(genomes, config):
         UpdateSimulation(ais, genomes, alive_counter)
         RenderSimulation(ais, genomes)
         clock.tick(fps)
+        pygame.display.set_caption(str(clock.get_fps()))
         counter += 1
         
         if alive_counter[0] == 0:
@@ -369,13 +387,13 @@ def MainSimulationLoop(genomes, config):
             lowestscore_ploty.append(lowest_score)
             highestscore_ploty.append(highest_score)
             if highest_index > -1:  
-                RecordedInputs.append(AIRecordedInput[highest_index])
-                SaveRecordedInputsToFile(AIDataFile, True)  
+                RecordedInputs = AIRecordedInput[highest_index]
+                SaveRecordedInputsToFile(AIDataFile)  
             
             current_generation += 1
             running = False
     
-            Plot() 
+            # Plot() 
             
                            
 def Quit():
