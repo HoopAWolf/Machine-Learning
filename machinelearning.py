@@ -20,8 +20,8 @@ IsRecording    = False # flag for if we're recording the inputs from real player
 RecordedInputs = [] # list of frame data
 WasRKeyPressed = False # No key trigger so we have to check 
 
-IsRanFromData  = True # flag for if we're running the game through a external dataset 
-IsRanFromAIData  = False
+IsRanFromData  = False # flag for if we're running the game through a external dataset 
+IsRanFromAIData  = True
 DataFile = 'Data/Recordings/data.csv'
 InputIndex = 0
 
@@ -91,6 +91,7 @@ class Car(pygame.sprite.Sprite):
             self.speed = -3
         
     def check_collision(self, game_map):
+        global IsRecording
         self.alive = True
         for point in self.corners:
             if game_map.get_at((int(point[0]), int(point[1]))) == BORDER_COLOR:
@@ -228,16 +229,17 @@ def RunDataInputs():
         return
     
     inputblock = RecordedInputs[InputIndex].moves
-    print(inputblock)
     for input in inputblock:
         if input == 'U':
             player.accelerate(0.1)
-        elif input == 'D':
+        
+        if input == 'D':
             player.reverse(0.05)
 
         if input == 'L':
             player.turn(-1.8)
-        elif input == 'R':
+
+        if input == 'R':
             player.turn(1.8)
 
         if input == 'B':
@@ -252,22 +254,22 @@ def InputSimulation(ais, neural_networks):
             output = neural_networks[i].activate(ai.get_distance_to_border_data())
             choice = output.index(max(output))
             
-            move = ''
+            m = ''
             if choice == 0:
                 ai.turn(-1.8) # Turn left
-                move = 'L'
+                m = 'L'
             elif choice == 1:
                 ai.turn(1.8) # Turn right
-                move = 'R'
+                m = 'R'
             elif choice == 2:
                 ai.reverse(0.05) # Slow down
-                move = 'D'
+                m = 'D'
             else:
                 ai.accelerate(0.1) # Speed up
-                move = 'U'
+                m = 'U'
             
             frame_data = ai.get_distance_to_border_data()
-            AIRecordedInput[i].append(FrameData(move, frame_data[0], frame_data[1], frame_data[2], frame_data[3], frame_data[4]))
+            AIRecordedInput[i].append(FrameData(m, frame_data[0], frame_data[1], frame_data[2], frame_data[3], frame_data[4]))
      
 def Update():
     car_list.update(resized_background)
@@ -294,7 +296,7 @@ def RenderSimulation(ais, genomes):
     for i, ai in enumerate(ais):
         if ai.alive:
             ai.draw_sensors(screen)
-        text = text_font.render(str(int(genomes[i][1].fitness)), True, (255,255,255))
+        text = text_font.render(str(int(genomes[i][1].key)) + ' ' + str(int(genomes[i][1].fitness)), True, (255,255,255))
         text_rect = text.get_rect()
         text_rect.center = [ai.rect.center[0], ai.rect.center[1] + 15]
         screen.blit(text, text_rect)
@@ -348,7 +350,7 @@ def MainSimulationLoop(genomes, config):
     car_list.empty()
     AIRecordedInput.clear()
     RecordedInputs.clear()
-    AIRecordedInput = [[]] * 30
+    AIRecordedInput = [[] for i in range(0, 30)]
     
     for i, genome in genomes:
         neural_network = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -374,18 +376,23 @@ def MainSimulationLoop(genomes, config):
         if alive_counter[0] == 0:
             running = False
             
-        if counter > 1200:
+        if counter > 1200 or not running:
             highest_index = -1
             for i, ai in enumerate(ais):
-                if lowest_score > genomes[i][1].fitness:
-                    lowest_score = genomes[i][1].fitness
-                if highest_score < genomes[i][1].fitness:
-                    highest_score = genomes[i][1].fitness
+                if highest_index == -1:
+                    lowest_score = highest_score = genomes[i][1].fitness
                     highest_index = i
+                else:
+                    if lowest_score > genomes[i][1].fitness:
+                        lowest_score = genomes[i][1].fitness
+                    if highest_score < genomes[i][1].fitness:
+                        highest_score = genomes[i][1].fitness
+                        highest_index = i
                     
             generation_plotx.append(current_generation)
             lowestscore_ploty.append(lowest_score)
             highestscore_ploty.append(highest_score)
+
             if highest_index > -1:  
                 RecordedInputs = AIRecordedInput[highest_index]
                 SaveRecordedInputsToFile(AIDataFile)  
@@ -431,5 +438,5 @@ car_list = pygame.sprite.Group()
 #-----------------------------------------------------MAIN LOOP-----------------------------------------------------
 Init()
 MainLoop()
-population.run(MainSimulationLoop, 100)  
+population.run(MainSimulationLoop, 20)  
 Quit()
