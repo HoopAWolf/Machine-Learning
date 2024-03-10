@@ -5,6 +5,9 @@ import os
 import sys
 from pygame.locals import *
 from matplotlib import pyplot as plt
+from sklearn.tree import DecisionTreeRegressor   
+from sklearn.model_selection import train_test_split
+import pandas 
 
 import csv # for csv read/write 
 
@@ -16,12 +19,11 @@ current_generation = 0 # Generation counter
 BORDER_COLOR = (48, 160, 0, 255) # Set wall color
 CAR_SIZE_HEIGHT = 44
 
-IsRecording    = False # flag for if we're recording the inputs from real players
+IsRecording    = True # flag for if we're recording the inputs from real players
 RecordedInputs = [] # list of frame data
-WasRKeyPressed = False # No key trigger so we have to check 
 
 IsRanFromData  = False # flag for if we're running the game through a external dataset 
-IsRanFromAIData  = True
+IsRanFromAIData  = False
 DataFile = 'Data/Recordings/data.csv'
 InputIndex = 0
 
@@ -78,11 +80,6 @@ class Car(pygame.sprite.Sprite):
             
             if self.speed > 5:
                 self.speed = 5
-            
-    def brake(self):
-        self.speed *= 0.5
-        if abs(self.speed) < 0.1:
-            self.speed = 0
             
     def reverse(self, amount):
         self.speed -= amount
@@ -175,7 +172,7 @@ def SaveRecordedInputsToFile(data_path):
     global RecordedInputs
     with open(data_path, 'w', newline='') as datafile:
         writer = csv.writer(datafile)
-        writer.writerow(['Output (U,D,L,R)', 'Distance from wall (Left)', 'Distance from wall (Half Left)', 'Distance from wall (Front)', 'Distance from wall (Half Right)', 'Distance from wall (Right)'])
+        writer.writerow(['Output', 'Left', 'HalfLeft', 'Front', 'HalfRight', 'Right'])
         for frame in RecordedInputs:
             writer.writerow([frame.moves, frame.distLeft, frame.distHalfLeft, frame.distFront, frame.distHalfRight, frame.distRight])
 
@@ -192,36 +189,22 @@ def InputPolling():
     pressed = pygame.key.get_pressed()
     inputs = ''
 
-    if pressed[pygame.K_UP]:
-        player.accelerate(0.1)
-        inputs += 'U'
-    elif pressed[pygame.K_DOWN]:
+    if pressed[pygame.K_DOWN]:
         player.reverse(0.05)
-        inputs += 'D'
-            
-    if pressed[pygame.K_LEFT]:
+        inputs += '1'       
+    elif pressed[pygame.K_LEFT]:
         player.turn(-1.8)
-        inputs += 'L'
+        inputs += '2'
     elif pressed[pygame.K_RIGHT]:
         player.turn(1.8)
-        inputs += 'R'
+        inputs += '3'
+    else:
+        player.accelerate(0.1)
+        inputs += '0'
 
-    if pressed[pygame.K_SPACE]:
-        player.brake()
-        inputs += 'B'
-
-    if IsRecording and not IsRanFromData:
+    if IsRecording and not IsRanFromData and not IsRanFromAIData:
         frame_data = player.get_distance_to_border_data()
         RecordedInputs.append(FrameData(inputs, frame_data[0], frame_data[1], frame_data[2], frame_data[3], frame_data[4]))
-
-    if pressed[pygame.K_r]:
-        if not WasRKeyPressed:
-            if IsRecording: 
-                SaveRecordedInputsToFile(DataFile)    
-            IsRecording = not IsRecording
-            WasRKeyPressed = True
-    else:
-        WasRKeyPressed = False
 
 def RunDataInputs():
     global InputIndex, RecordedInputs
@@ -230,20 +213,17 @@ def RunDataInputs():
     
     inputblock = RecordedInputs[InputIndex].moves
     for input in inputblock:
-        if input == 'U':
+        if input == '0':
             player.accelerate(0.1)
         
-        if input == 'D':
+        if input == '1':
             player.reverse(0.05)
 
-        if input == 'L':
+        if input == '2':
             player.turn(-1.8)
 
-        if input == 'R':
+        if input == '3':
             player.turn(1.8)
-
-        if input == 'B':
-            player.brake()
     
     InputIndex += 1
 
@@ -257,19 +237,35 @@ def InputSimulation(ais, neural_networks):
             m = ''
             if choice == 0:
                 ai.turn(-1.8) # Turn left
-                m = 'L'
+                m = '2'
             elif choice == 1:
                 ai.turn(1.8) # Turn right
-                m = 'R'
+                m = '3'
             elif choice == 2:
                 ai.reverse(0.05) # Slow down
-                m = 'D'
+                m = '1'
             else:
                 ai.accelerate(0.1) # Speed up
-                m = 'U'
+                m = '0'
             
             frame_data = ai.get_distance_to_border_data()
             AIRecordedInput[i].append(FrameData(m, frame_data[0], frame_data[1], frame_data[2], frame_data[3], frame_data[4]))
+
+def InputPrediction():    
+    global regr
+    global predicted_ai_player
+    
+    inputs = regr.predict([predicted_ai_player.get_distance_to_border_data()])
+    print(str(predicted_ai_player.get_distance_to_border_data()) + " Predicted Key: " + str(inputs))
+    
+    if int(inputs) == 1:
+        predicted_ai_player.reverse(0.05)
+    elif int(inputs) == 2:
+        predicted_ai_player.turn(-1.8)
+    elif int(inputs) == 3:
+        predicted_ai_player.turn(1.8)
+    else:
+        predicted_ai_player.accelerate(0.1)
      
 def Update():
     car_list.update(resized_background)
@@ -331,9 +327,13 @@ def MainLoop():
         counter += 1
         
         if not player.alive:
+            if IsRecording: 
+                SaveRecordedInputsToFile(DataFile)
             running = False
             
         if counter > 1200:
+            if IsRecording: 
+                SaveRecordedInputsToFile(DataFile)    
             running = False
 
 def MainSimulationLoop(genomes, config):
@@ -376,7 +376,7 @@ def MainSimulationLoop(genomes, config):
         if alive_counter[0] == 0:
             running = False
             
-        if counter > 1200 or not running:
+        if counter > 1200:
             highest_index = -1
             for i, ai in enumerate(ais):
                 if highest_index == -1:
@@ -401,7 +401,41 @@ def MainSimulationLoop(genomes, config):
             running = False
     
             # Plot() 
+
+def MainPredictionLoop():
+    global regr
+    global predicted_ai_player
+    running = True
+    counter = 0
+    car_list.empty()
+    car_list.add(predicted_ai_player)
+    
+    df = pandas.read_csv("Data/Recordings/all_ai_best_data.csv")
+    X = df[['Left', 'HalfLeft', 'Front', 'HalfRight', 'Right']]
+    y = df['Output']
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 0)
+    regr.fit(X_train, y_train)
+    player = Car(400, 180)
+    
+    print("**************************************Predicted Player**************************************")
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+     
+        InputPrediction()
+        Update()
+        Render()
+        clock.tick(fps)
+        pygame.display.set_caption(str(clock.get_fps()))
+        counter += 1
+        
+        if not predicted_ai_player.alive:
+            running = False
             
+        if counter > 1200:
+            running = False            
                            
 def Quit():
     pygame.quit()
@@ -426,6 +460,7 @@ text_font = 0
 
 #Player
 player = Car(400, 180)
+predicted_ai_player = Car(400, 180)
 
 # Q-Learning variables using NEAT
 config_path = 'configs/config.txt'
@@ -433,10 +468,14 @@ config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.D
 population = neat.Population(config)
 stats = neat.StatisticsReporter()
 
+# Prediction model using Decision Tree Regressor
+regr = DecisionTreeRegressor()
+
 car_list = pygame.sprite.Group()
 
 #-----------------------------------------------------MAIN LOOP-----------------------------------------------------
 Init()
 MainLoop()
-population.run(MainSimulationLoop, 20)  
+MainPredictionLoop()
+population.run(MainSimulationLoop, 50)  
 Quit()
