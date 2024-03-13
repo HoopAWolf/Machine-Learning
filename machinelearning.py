@@ -23,7 +23,7 @@ IsRecording    = True # flag for if we're recording the inputs from real players
 RecordedInputs = [] # list of frame data
 
 IsRanFromData  = False # flag for if we're running the game through a external dataset 
-IsRanFromAIData  = False
+IsRanFromAIData  = True
 DataFile = 'Data/Recordings/data.csv'
 InputIndex = 0
 
@@ -256,7 +256,7 @@ def InputPrediction():
     global predicted_ai_player
     
     inputs = regr.predict([predicted_ai_player.get_distance_to_border_data()])
-    print(str(predicted_ai_player.get_distance_to_border_data()) + " Predicted Key: " + str(inputs))
+    # print(str(predicted_ai_player.get_distance_to_border_data()) + " Predicted Key: " + str(inputs))
     
     if int(inputs) == 1:
         predicted_ai_player.reverse(0.05)
@@ -415,8 +415,12 @@ def MainPredictionLoop():
     y = df['Output']
     
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 0)
-    regr.fit(X_train, y_train)
+    regr.fit(X_train.values, y_train)
     player = Car(400, 180)
+    
+    print("Decision tree:\n" )
+    print("score: " + str(regr.score(X_test, y_test)))
+    print("depth: " + str(regr.get_depth()))
     
     print("**************************************Predicted Player**************************************")
     while running:
@@ -476,6 +480,8 @@ car_list = pygame.sprite.Group()
 #-----------------------------------------------------MAIN LOOP-----------------------------------------------------
 Init()
 MainLoop()
+print("Q-Learning using NEAT: Furthest distance travelled = " + str(player.distance_travelled))
 MainPredictionLoop()
-population.run(MainSimulationLoop, 50)  
+print("Decision Tree Regressor: Furthest distance travelled = " + str(player.distance_travelled))
+# population.run(MainSimulationLoop, 50)  
 Quit()
