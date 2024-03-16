@@ -1,0 +1,27 @@
+Steps to start the game: 
+1) Import Pygames and NEAT libraries through command prompt
+2) Run the game using command prompt
+
+Controls:
+DOWN, LEFT, RIGHT arrow keys to control car
+UP is default control without any inputs
+
+UP -> Go Forward
+DOWN -> Reverse
+Left -> Turn left
+Right -> Turn right
+
+Important Variables:
+- IsRecording boolean variable -> True to record user inputs, False to NOT record user inputs
+- IsRanFromData boolean variable -> True if player car is being played back through external dataset
+- IsRanFromAIData boolean variable -> True if player car is being played back through AI generated external dataset
+
+- population.run(MainSimulationLoop, #NUMBER OF GENERATIONS) -> Change the parameter to run #NUMBER of times
+
+Files are written into: 
+- Regressive Decision Tree will read from dataset in file all_ai_best_data.csv
+- Q-learning NEAT dataset will be written into file ai_data.csv
+- Player input dataset will be written into data.csv
+
+To run AI data:
+- Change IsRanFromAIData to True
